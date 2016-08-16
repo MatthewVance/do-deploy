@@ -1,0 +1,65 @@
+#cloud-config
+# Update System and Install Packages
+package_update: true
+package_upgrade: true
+packages:
+  - fail2ban
+  - sudo
+  - ufw
+users:
+  - name: user_name_here
+    groups: sudo
+    shell: /bin/bash
+    ssh-authorized-keys:
+      - sudo_public_key_here
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+write_files:
+  - path: /etc/issue.net
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ************************************************************************
+                        **WARNING**WARNING**WARNING**
+      This computer system is the private property of its owner, whether
+      individual, corporate or government. It is for authorized use only.
+      Unauthorized access or use of this computer system may subject violators
+      to criminal, civil, and/or administrative action. All data contained
+      on this computer system may be monitored, intercepted, recorded, read,
+      copied, or captured in any manner and disclosed in any manner, by
+      authorized personnel. THERE IS NO RIGHT OF PRIVACY IN THIS SYSTEM.
+      System personnel may give to law enforcement officials, both domestic
+      and foreign, any potential evidence of crime found on this computer
+      system. USE OF THIS SYSTEM BY ANY USER, AUTHORIZED OR UNAUTHORIZED,
+      CONSTITUTES CONSENT TO THIS MONITORING, INTERCEPTION, RECORDING,
+      READING, COPYING, and/or CAPTURING and DISCLOSURE.
+                        **WARNING**WARNING**WARNING**
+      ************************************************************************
+  - path: /etc/ufw/applications.d/my-ufw-openssh
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [my-ufw-openssh]
+      title=Secure shell server, an rshd replacement
+      description=OpenSSH is a free implementation of the Secure Shell protocol.
+      ports=22/tcp
+runcmd:
+  - sed -i -e '/^PermitRootLogin/s/^.*$/PermitRootLogin no/' /etc/ssh/sshd_config
+  - sed -i -e '$aAllowUsers user_name_here' /etc/ssh/sshd_config
+  - sed -i -e '/^UsePrivilegeSeparation/s/^.*$/UsePrivilegeSeparation sandbox/' /etc/ssh/sshd_config
+  # Uncomment banner line
+  - sed -i '/issue.net/s/^#//' /etc/ssh/sshd_config
+  # Comment out ECDSA and DSA host key lines (global)
+  - sed -i '/dsa/s/^/#/g' /etc/ssh/sshd_config
+  # Regenerate host keys
+  - /usr/sbin/dpkg-reconfigure openssh-server
+  # Make sure SSH changes apply in case reboot command is removed
+  - restart ssh
+  # Enable firewall and allow (limited) SSH access
+  - ufw enable
+  - ufw limit my-ufw-openssh
+  # Create jail.local config
+  - cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+power_state:
+  mode: reboot
+  timeout: 60
+  condition: True
